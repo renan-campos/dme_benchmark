@@ -5,8 +5,7 @@ BINDIR   = bin
 all: dist_mut_exc
 
 $(BINDIR)/nc: $(SRCDIR)/node_controller.c
-	gcc $(SRCDIR)/node_controller.c -o $(BINDIR)/nc
-
+	gcc $(SRCDIR)/node_controller.c -o $(BINDIR)/nc -lpthread
 
 dist_mut_exc: Dockerfile $(BINDIR)/nc
 	docker build -t dist_mut_exc .
