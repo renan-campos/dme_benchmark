@@ -26,21 +26,10 @@
 #include <netinet/in.h> // Structures needed for internet domain addresses
 #include <netdb.h>      // Defines structure hostnet
 
-// Each distributed lock needs an id. 
-#define DME_ID 2009
+#include "dme.h"
 
 // Node Controller port
 #define NC_PORT 2017
-
-// Message queue ID TODO Add to global file
-// The msg type convention for the message queue also needs to be in global.h
-// Along with the shared memory and semaphore i.d.s... 
-// or all of this can be added to dme.h
-#define M_ID 2017
-
-// message queue variable
-// This is global because it will be read by multiple threads.
-int msqid;
 
 // There are the hostnames expected in order to make connects
 // TODO find a more dynamic approach.
@@ -53,6 +42,10 @@ static char *MY_NODES[] = {
   "dme-5",
   "dme-6",
 } ;
+
+// message queue variable
+// This is global because it will be read by multiple threads.
+int msqid;
 
 // These threads are responsible for keeping lifetime connection to other nodes.
 // This will receive messages from message queue and send them out the socket.
@@ -145,16 +138,20 @@ int main(int argc, char *argv[]) {
 
 	// Creating message queue.
 	// This will be used to relay messages from:
-	// 1. Processes that want to execute a critical section to the dme algorithm
-	// 2. The dme algorithm threads to the sender thread
-	// 3. A node's receiver thread to the dme algorithm
+	// 1. Processes that want to execute a critical section to the dme thread
+	// 2. The receiver thread to the dme thread
+	// 3. The dme thread to process waiting to execute critical section
+	// 4. The dme thread to sender thread
 	if ((msqid = msgget(M_ID, (IPC_CREAT | 0600))) == -1) {
 		perror("msgget failed :\n");
 		exit(1);
 	}
 	
-	// initialize distributed mutual exclusion algorithm
-        // TODO
+	// Start distributed mutual exclusion message handler.
+        if (pthread_create(&thread_id, NULL, dme_msg_handler, (void *) &n_id) != 0) {
+		fprintf(stderr, "pthread_create failed\n");
+		exit(1);
+	}
 
 	// Begin socket connection
 	// After binding the listening socket, socket connections are created for each node with a smaller node id.
@@ -183,6 +180,8 @@ int main(int argc, char *argv[]) {
 
 	// Allocate array for socket file descriptors
 	sock_fds = (int *) malloc(sizeof(int) * n_tot);
+	for (i = 0; i < n_tot; i++)
+		sock_fds[i] = -1;
 	if (sock_fds == NULL) 
 		error(2, "ERROR on malloc\n");
 
@@ -221,7 +220,7 @@ int main(int argc, char *argv[]) {
 
 		sock_fds[i-1] = sockfd_c;
 	        // TODO keep thread ids for closing later
-		if (pthread_create(&thread_id, NULL, receiver_thread, (void *) (long) i) != 0) {
+		if (pthread_create(&thread_id, NULL, receiver_thread, (void *) &sock_fds[i-1]) != 0) {
 			perror("Error on thread creation\n");
 			exit(1);
 		}	
@@ -247,7 +246,7 @@ int main(int argc, char *argv[]) {
 		
 		sock_fds[i-1] = newsockfd;
 	        // TODO keep thread ids for closing later
-		if (pthread_create(&thread_id, NULL, receiver_thread, (void *) (long) i) != 0) {
+		if (pthread_create(&thread_id, NULL, receiver_thread, (void *) &sock_fds[i-1]) != 0) {
 			perror("Error on thread creation\n");
 			exit(1);
 		}	
@@ -256,11 +255,8 @@ int main(int argc, char *argv[]) {
 	printf("Fully connected!\n");
         fflush(stdout);
 
-	// Closing message queue
-        if (msgctl(msqid, IPC_RMID, 0) == -1) {
-		perror("msgctl failed :\n");
-		exit(1);
-	}
+	// Run forever.
+	for(;;);
 
 	return 0;
 }
@@ -273,7 +269,88 @@ void *sig_waiter(void *arg) {
 }
 
 void *receiver_thread(void *arg) {
+	// Receiver gets message from socket and places it in the message queue. 
+	int sockfd = *((int *) arg);
+	int i, x, node = -1;
+	char header;
+	MSG qmsg; 
+
+	// Figure out which node this is the receiver thread for.
+	// This is mostly for logging purposes.
+	for (i = 0; i < n_tot; i++)
+		if (sock_fds[i] == sockfd) {
+			node = i+1;
+			break;
+		}
+	if (node == -1)
+		error(0, "Sockfd error\n");
+	printf("Receiver thread for node %d started with %d\n", node, sockfd);
+	fflush(stdout);
+
+	for (;;) {
+		// Read messages from socket.
+		// Each message has a header that tells the number of bytes in the actual message.
+		if ((x = read(sockfd, &header, 1)) == -1) {
+			fprintf(stderr, "%s\n", strerror(errno));
+			error(0, "Error on read\n");
+		}
+
+		if (x == 0)
+			error(0, "EOF on socket\n");
+
+		qmsg.size = ntohl(header);
+		printf("Receiving message from %d of size %d\n", node, qmsg.size);
+		for (i = qmsg.size; i > 0; i--) {
+			if ((x = read(sockfd, &qmsg.buf[i], 1)) == -1) {
+				fprintf(stderr, "%s\n", strerror(errno));
+				error(0, "Error on read\n");
+			}
+
+			if (x == 0)
+				error(0, "EOF on socket\n");
+		}
+		printf("Message from %d received\n", node);
+		fflush(stdout);
+		
+		qmsg.type = TO_DME;
+		// This is used to check whether the structure needs its byte order to be changed. 
+		qmsg.network = 1;
+		// Place message on message queue for distributed mutual exclusion algorithm to process.
+		// NOTE: the dme thread that receives this 
+		// will have to convert from network byte order to host byte order (htohl)
+		if (msgsnd(msqid, &qmsg, sizeof(MSG), 0) == -1)
+			error(0, "Error in message queue\n");
+	}
+	return NULL;
 }
 
 void *sender_thread(void *arg) {
+	// Sender thread listens to the message queue, and then writes its message to all sockets.
+	// Before actually sending the message, a header must be sent specifying the message size, and type (producer vs. consumer)
+	// Assuming that the dme sender thread handles converting from hardware byte order to network byte order.
+	int i;
+	char header;
+	MSG omsg;
+
+	for (;;) {
+		// Blocks until a message for sending is received from the queue
+		// First a message stating what type of process is going to send a request is received,
+		// Then the actuall message will be given. 
+		// The ordering is guaranteed because only the dme_sender thread is writing to this message queue.
+		if (msgrcv(msqid, &omsg, sizeof(MSG), TO_SND, 0) == -1)
+			error(0, "NC: Error on message queue receive\n");
+
+		header = htonl(omsg.size);
+		for (i = 0; i < n_tot; i++) {
+			if (sock_fds[i] == -1)
+				continue;
+			printf("Sending message to node %d with fd %d\n");
+			fflush(stdout);
+			if (write(sock_fds[i], &header, 1) == -1)
+				error(0, "Error on write\n");
+			if (write(sock_fds[i], &omsg.buf, omsg.size) == -1)
+				error(0, "Error on write\n");
+		}
+	}
+	return NULL;
 }
