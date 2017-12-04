@@ -15,7 +15,7 @@ struct simple_msg {
 };
 
 void *dme_msg_handler(void *arg) {
-	int nid = *((int *) arg);
+    int nid = *((int *) arg);
 	int msqid = msgget(M_ID, 0600);
 	MSG imsg;
 	struct simple_msg smsg;
@@ -24,28 +24,38 @@ void *dme_msg_handler(void *arg) {
 		perror("msgget failed :\n");
 		exit(1);
 	}
+
+    printf("Simple dme started\n");
+    fflush(stdout);
+
 	for (;;) {
 		if (msgrcv(msqid, &imsg, sizeof(MSG), TO_DME, 0) == -1) {
 			perror("msgrcv failed :\n");
 			exit(1);
 		}
 		
+        printf("Simple: Message queue message received!\n");
+        fflush(stdout);
+    
 		memcpy(&smsg, &imsg.buf, sizeof(struct simple_msg));
 		// Check if from receiver or consumer
 		if (imsg.network) {
 			// Message was from another node. Convert to hardware byte order and print.
-			smsg.n = ntohl(smsg.n);
-			smsg.r = ntohl(smsg.r);
-			printf("Node %d making request #%d\n", smsg.n, smsg.r);
+			printf("Simple: Node %d making request #%d\n", smsg.n, smsg.r);
+            fflush(stdout);
 		}	
 		else {
 			// Message was from consumer. Convert to network byte order, send to sender, and reply to consumer.
-			smsg.n = htonl(nid);
-			smsg.r = htonl(smsg.r);
+			printf("Simple: Sending message %d to sender\n", smsg.r);
+            fflush(stdout);
+
+			smsg.n = nid;
+
 			memcpy(&imsg.buf, &smsg, sizeof(struct simple_msg));
 			imsg.size = sizeof(struct simple_msg);
 			imsg.type = TO_SND;
-			if (msgsnd(msqid, &imsg, sizeof(MSG), 0) == -1) {
+    
+            if (msgsnd(msqid, &imsg, sizeof(MSG), 0) == -1) {
 				perror("Error on message send\n");
 				exit(1);
 			}	
@@ -72,8 +82,10 @@ void dme_down() {
 	smsg.n = 0;
 	smsg.r = ++r;
 	
+
 	memcpy(&imsg.buf, &smsg, sizeof(struct simple_msg));
-	imsg.size = sizeof(struct simple_msg);
+    
+    imsg.size = sizeof(struct simple_msg);
 	imsg.type = TO_DME;
 	imsg.network = 0;
 

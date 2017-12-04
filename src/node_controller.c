@@ -252,6 +252,12 @@ int main(int argc, char *argv[]) {
 		}	
 
 	}
+	
+    // Start sender thread.
+    if (pthread_create(&thread_id, NULL, sender_thread, NULL) != 0) {
+		fprintf(stderr, "pthread_create failed\n");
+		exit(1);
+	}
 	printf("Fully connected!\n");
         fflush(stdout);
 
@@ -298,14 +304,14 @@ void *receiver_thread(void *arg) {
 		if (x == 0)
 			error(0, "EOF on socket\n");
 
-		qmsg.size = ntohl(header);
+		qmsg.size = header;
 		printf("Receiving message from %d of size %d\n", node, qmsg.size);
-		for (i = qmsg.size; i > 0; i--) {
+		for (i = 0; i < qmsg.size; i++) {
 			if ((x = read(sockfd, &qmsg.buf[i], 1)) == -1) {
 				fprintf(stderr, "%s\n", strerror(errno));
 				error(0, "Error on read\n");
 			}
-
+            printf("%d ", qmsg.buf[i]);
 			if (x == 0)
 				error(0, "EOF on socket\n");
 		}
@@ -328,8 +334,7 @@ void *sender_thread(void *arg) {
 	// Sender thread listens to the message queue, and then writes its message to all sockets.
 	// Before actually sending the message, a header must be sent specifying the message size, and type (producer vs. consumer)
 	// Assuming that the dme sender thread handles converting from hardware byte order to network byte order.
-	int i;
-	char header;
+	int i,j;
 	MSG omsg;
 
 	for (;;) {
@@ -340,16 +345,17 @@ void *sender_thread(void *arg) {
 		if (msgrcv(msqid, &omsg, sizeof(MSG), TO_SND, 0) == -1)
 			error(0, "NC: Error on message queue receive\n");
 
-		header = htonl(omsg.size);
+        printf("SENDER: message received of size %d\n", omsg.size);
+        fflush(stdout);
+
 		for (i = 0; i < n_tot; i++) {
 			if (sock_fds[i] == -1)
 				continue;
-			printf("Sending message to node %d with fd %d\n");
-			fflush(stdout);
-			if (write(sock_fds[i], &header, 1) == -1)
+			if (write(sock_fds[i], &omsg.size, 1) == -1)
 				error(0, "Error on write\n");
-			if (write(sock_fds[i], &omsg.buf, omsg.size) == -1)
-				error(0, "Error on write\n");
+            for (j = 0; j < omsg.size; j++)
+			    if (write(sock_fds[i], &omsg.buf[j], 1) == -1)
+				    error(0, "Error on write\n");
 		}
 	}
 	return NULL;

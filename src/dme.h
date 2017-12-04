@@ -16,7 +16,7 @@
 typedef struct dme_message {
 	long type;            // TO_SNDR | TO_DME | TO_CONS
 	char size;            // Size of dme message
-	char network;         // Used by the dme thread to determine whether to convert byte order
+	char network;         // Used by the dme thread to determine whether from local queue or from network.
 	char buf[255];        // Contains the dme data structure. NOTE: limited to 255 bytes. 
 } MSG;
 
@@ -28,7 +28,6 @@ typedef struct dme_message {
 // and it can send messages to the consumers (causing dme_down or dme_up to unblock) or to the sender thread.
 // Messages to consumers will have type TO_CON
 // Messages to sender will have type TO_SND
-// When sending to sender, message must be in network byte order.
 // Its argument is the current node id.
 void *dme_msg_handler(void *arg);
 
