@@ -56,6 +56,9 @@ int main(int argc, char *argv[]) {
 		pthread_create(&thread_ID, NULL, handler, (void *) &newsockfd);
 	}
 
+    // Wait for final thread to finish
+    pthread_join(thread_ID, NULL);
+
 	// Print content of buffer
 	for (i = 0; i < BSIZE; i++)
 		printf("NODE: %4d DONUT: %4d\n", buffer[i].node_id, buffer[i].donut_number);

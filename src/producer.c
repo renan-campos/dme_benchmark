@@ -39,25 +39,28 @@ int main(int argc, char *argv[]) {
 	// Determining number of messages needed to send
 	msgs = atoi(argv[2]);
 
-	// Setting up socket to make connections.
-	portno = PORTNO;
-	sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	if (sockfd < 0)
-		error("ERROR opening socket");
-	server = gethostbyname(BUFFMAN);
-	if (server == NULL) {
-		fprintf(stderr, "ERROR, no such host\n");
-		exit(0);
-	}
-	bzero((char *) &serv_addr, sizeof(serv_addr));
-	serv_addr.sin_family = AF_INET;
-	bcopy((char *)server->h_addr,
-			(char *)&serv_addr.sin_addr.s_addr,
-			server->h_length);
-	serv_addr.sin_port = htons(portno);
 
 	for (i = 0; i < msgs; i++) {
-		// Get distributed mutex in order to run critical section
+        // Setting up socket to make connections.
+        portno = PORTNO;
+        sockfd = socket(AF_INET, SOCK_STREAM, 0);
+        if (sockfd < 0)
+            error("ERROR opening socket");
+        server = gethostbyname(BUFFMAN);
+        if (server == NULL) {
+            fprintf(stderr, "ERROR, no such host\n");
+            exit(0);
+        }
+        bzero((char *) &serv_addr, sizeof(serv_addr));
+        serv_addr.sin_family = AF_INET;
+        bcopy((char *)server->h_addr,
+                (char *)&serv_addr.sin_addr.s_addr,
+                server->h_length);
+        serv_addr.sin_port = htons(portno);
+		
+        usleep(5);
+
+        // Get distributed mutex in order to run critical section
 		dme_down();
 
 		// Connecting to buffer manager
@@ -80,8 +83,8 @@ int main(int argc, char *argv[]) {
 		printf("PROD: Provided buffer manager with donut #%d\n", num);
 		fflush(stdout);
 
-		// Close socket
-		close(sockfd);
+        close(sockfd);
+        sockfd = -1;
 
 		// Free distributed mutext lock
 		dme_up();

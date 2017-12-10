@@ -13,11 +13,13 @@ tot=$1
 # Creates user defined network so that hostnames automatically work.
 docker network inspect dist_net &> /dev/null || docker network create dist_net
 
+docker run --detach --net dist_net -h "dme_bm" --name "dme_bm" dme_bm /bin/bm 
+
 for nid in $(seq 1 $tot);
 do
     host="dme-"$nid
     echo "Creating container with hostname: " $host
-    docker run --detach --net dist_net -h $host --name $host dist_mut_exc /bin/nc $nid $tot
+    docker run --detach --net dist_net -h $host --name $host dme_nc /bin/nc $nid $tot
     # Sleeping in order to make sure container is listening before new container makes a call.
     sleep 1 
 done
