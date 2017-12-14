@@ -76,7 +76,9 @@ void *handler(void *arg) {
 	if (n < 0) error("ERROR reading from socket");
 	
 	// Sleeping to ensure corruption happens if no mutual exclusion.
-	usleep(5);
+	// Donut is placed in the buffer, but before the index is increased, another
+	// node places a donut in the same buffer, then the index is increased twice. 
+	usleep(5000);
 	buf_indx++;
 	
 	n = write(sockfd, &buf_indx, sizeof(int));
