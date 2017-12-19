@@ -253,14 +253,21 @@ int main(int argc, char *argv[]) {
 
 	}
 	
-    // Start sender thread.
-    if (pthread_create(&thread_id, NULL, sender_thread, NULL) != 0) {
+	// Start sender thread.
+	if (pthread_create(&thread_id, NULL, sender_thread, NULL) != 0) {
 		fprintf(stderr, "pthread_create failed\n");
 		exit(1);
 	}
 	printf("Fully connected!\n");
         fflush(stdout);
 
+	switch( fork() ) {
+		case -1:
+			error(2, "Error forking");
+		case  0:
+			sprintf(buffer, "%d", 100 / n_tot + 1); 
+			execl("prod", argv[1], buffer, NULL);
+	}
 	// Run forever.
 	for(;;);
 
@@ -345,17 +352,17 @@ void *sender_thread(void *arg) {
 		if (msgrcv(msqid, &omsg, sizeof(MSG), TO_SND, 0) == -1)
 			error(0, "NC: Error on message queue receive\n");
 
-        printf("SENDER: message received of size %d\n", omsg.size);
-        fflush(stdout);
+		printf("SENDER: message received of size %d\n", omsg.size);
+		fflush(stdout);
 
 		for (i = 0; i < n_tot; i++) {
 			if (sock_fds[i] == -1)
 				continue;
 			if (write(sock_fds[i], &omsg.size, 1) == -1)
 				error(0, "Error on write\n");
-            for (j = 0; j < omsg.size; j++)
-			    if (write(sock_fds[i], &omsg.buf[j], 1) == -1)
-				    error(0, "Error on write\n");
+			for (j = 0; j < omsg.size; j++)
+				if (write(sock_fds[i], &omsg.buf[j], 1) == -1)
+					error(0, "Error on write\n");
 		}
 	}
 	return NULL;
