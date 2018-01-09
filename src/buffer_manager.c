@@ -27,12 +27,10 @@ void error(char *msg) {
 void *handler(void *arg);
 
 int main(int argc, char *argv[]) {
-	int i;
+	int i, batch = 0;
 	int sockfd, newsockfd, portno, clilen;
 	struct sockaddr_in serv_addr, cli_addr;
 	pthread_t thread_ID;
-
-	buf_indx = 0;
 
 	// Creating socket
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
@@ -49,19 +47,25 @@ int main(int argc, char *argv[]) {
 	listen(sockfd, 5);
 
 	clilen = sizeof(cli_addr);
-	
-	// Listen for connections, create thread on accept.
-	while (buf_indx < BSIZE-1) {
-		newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
-		pthread_create(&thread_ID, NULL, handler, (void *) &newsockfd);
-	}
+	while(1) {
+        // Reset buffer index
+        buf_indx = 0;
+        // Listen for connections, create thread on accept.
+        while (buf_indx < BSIZE-1) {
+            newsockfd = accept(sockfd, (struct sockaddr *) &cli_addr, &clilen);
+            pthread_create(&thread_ID, NULL, handler, (void *) &newsockfd);
+        }
 
-    // Wait for final thread to finish
-    pthread_join(thread_ID, NULL);
+        // Wait for final thread to finish
+        pthread_join(thread_ID, NULL);
 
-	// Print content of buffer
-	for (i = 0; i < BSIZE; i++)
-		printf("NODE: %4d DONUT: %4d\n", buffer[i].node_id, buffer[i].donut_number);
+        // Print content of buffer
+        printf("------ Start Batch %d ------\n", batch);
+        for (i = 0; i < BSIZE; i++)
+            printf("NODE: %4d DONUT: %4d\n", buffer[i].node_id, buffer[i].donut_number);
+        printf("------ End Batch %d ------\n", batch++);
+        fflush(stdout);
+    }
 
 	return 0;
 }
@@ -80,5 +84,7 @@ void *handler(void *arg) {
 	buf_indx++;
 	
 	n = write(sockfd, &buf_indx, sizeof(int));
-	if (n < 0) error("ERROR writing to socket");
+	//if (n < 0) error("ERROR writing to socket");
+	if (n < 0) printf("Warning: could not write to node\n");
+    fflush(stdout);
 }

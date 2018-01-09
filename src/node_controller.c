@@ -265,8 +265,13 @@ int main(int argc, char *argv[]) {
 		case -1:
 			error(2, "Error forking");
 		case  0:
-			sprintf(buffer, "%d", 100 / n_tot + 1); 
-			execl("prod", argv[1], buffer, NULL);
+            printf("Setting up producer process.\n");
+            fflush(stdout);
+            // The number of donuts this producer should create.
+			sprintf(buffer, "%d", 100); 
+			execl("/bin/prod", "prod", argv[1], buffer, NULL);
+            perror("Error running producer\n");
+            exit(1);
 	}
 	// Run forever.
 	for(;;);
