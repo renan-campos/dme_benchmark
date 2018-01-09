@@ -1,17 +1,18 @@
 SRCDIR   = src
-OBJDIR   = obj
+OBJDIR   = lib
 BINDIR   = bin
 
-all: dme_nc dme_bm
+all: $(OBJDIR)/simple.so dme_nc dme_bm
 
-$(OBJDIR)/simple.o: $(SRCDIR)/simple.c $(SRCDIR)/dme.h
-	gcc -c $(SRCDIR)/simple.c -o $(OBJDIR)/simple.o
+# This is an example shared distributed mutual exclusion library
+$(OBJDIR)/simple.so: $(SRCDIR)/simple.c $(SRCDIR)/dme.h
+	gcc -shared -o $(OBJDIR)/simple.so $(SRCDIR)/simple.c -fPIC
 
-$(BINDIR)/nc: $(SRCDIR)/node_controller.c $(SRCDIR)/dme.h $(OBJDIR)/simple.o
-	gcc $(SRCDIR)/node_controller.c $(OBJDIR)/simple.o -o $(BINDIR)/nc -lpthread
+$(BINDIR)/nc: $(SRCDIR)/node_controller.c $(SRCDIR)/dme.h
+	gcc $(SRCDIR)/node_controller.c -o $(BINDIR)/nc -ldl -lpthread
 
-$(BINDIR)/prod: $(SRCDIR)/producer.c $(SRCDIR)/dme.h $(OBJDIR)/simple.o
-	gcc $(SRCDIR)/producer.c $(OBJDIR)/simple.o -o $(BINDIR)/prod
+$(BINDIR)/prod: $(SRCDIR)/producer.c $(SRCDIR)/dme.h
+	gcc $(SRCDIR)/producer.c -o $(BINDIR)/prod -ldl
 
 $(BINDIR)/bm: $(SRCDIR)/buffer_manager.c
 	gcc $(SRCDIR)/buffer_manager.c -o $(BINDIR)/bm -lpthread
@@ -23,4 +24,4 @@ dme_bm: node_controller.df $(BINDIR)/bm
 	docker build -t dme_bm -f buffer_manager.df .
 
 clean:
-	rm -f $(BINDIR)/*
+	rm -vf $(BINDIR)/* $(OBJDIR)/*

@@ -1,6 +1,7 @@
 // Standard headers
 #include <stdlib.h>
 #include <stdio.h>
+#include <dlfcn.h>
 #include <stdarg.h>
 #include <string.h>
 #include <strings.h>
@@ -104,12 +105,24 @@ int main(int argc, char *argv[]) {
 	// Thread variables
 	pthread_t thread_id;
 
+	// dynamic library variables
+	void *handle;
+	void *(*dme_msg_handler)(void*);
+
 	// Parse command line arguments
-	if (argc < 3) 
-		error(1, "Usage: %s node_id number_of_nodes\n", argv[0]);
+	if (argc < 4) 
+		error(1, "Usage: %s node_id number_of_nodes dme_library\n", argv[0]);
 
 	n_id  = atoi(argv[1]);
 	n_tot = atoi(argv[2]);
+	// Open shared library and define functions functions
+	handle = dlopen(argv[3], RTLD_LAZY);
+	if (!handle) {
+		fprintf(stderr, "%s\n", dlerror());
+		exit(1);
+	}
+	dme_msg_handler = dlsym(handle, "dme_msg_handler");
+	
 	
 	// Setup for managing signals	
 	sigfillset(&all_signals);
@@ -148,7 +161,7 @@ int main(int argc, char *argv[]) {
 	}
 	
 	// Start distributed mutual exclusion message handler.
-        if (pthread_create(&thread_id, NULL, dme_msg_handler, (void *) &n_id) != 0) {
+        if (pthread_create(&thread_id, NULL, (*dme_msg_handler), (void *) &n_id) != 0) {
 		fprintf(stderr, "pthread_create failed\n");
 		exit(1);
 	}
@@ -266,16 +279,18 @@ int main(int argc, char *argv[]) {
 			error(2, "Error forking");
 		case  0:
 			sprintf(buffer, "%d", 100 / n_tot + 1); 
-			execl("prod", argv[1], buffer, NULL);
+			execl("prod", argv[1], buffer, argv[3], NULL);
 	}
 	// Run forever.
 	for(;;);
+
+	dlclose(handle);
 
 	return 0;
 }
 
 void sig_handler(int sig) {
-	// TODO
+	// TODO handle closing signals and properly free resources.
 }
 
 void *sig_waiter(void *arg) {
