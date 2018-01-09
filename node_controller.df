@@ -5,10 +5,4 @@ FROM ubuntu
 ADD bin /bin/
 ADD lib /lib/
 
-# Default dme algorithm that will be used.
-# To change when making a container call:
-# $ docker run ... ... -e DME=... 
-ENV DME="/lib/simple.so"
-
-# Run the hello world application
-CMD ["/bin/nc", $DME]
+CMD ["/bin/nc"]
