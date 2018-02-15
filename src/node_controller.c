@@ -378,6 +378,9 @@ void *sender_thread(void *arg) {
 		for (i = 0; i < n_tot; i++) {
 			if (sock_fds[i] == -1)
 				continue;
+            // omsg.network says whether to broadcast, or send to specific node. 
+            if (omsg.network != 0 && omsg.network != i+1)
+                continue;
 			if (write(sock_fds[i], &omsg.size, 1) == -1)
 				error(0, "Error on write\n");
 			for (j = 0; j < omsg.size; j++)
