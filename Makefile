@@ -2,9 +2,12 @@ SRCDIR   = src
 OBJDIR   = lib
 BINDIR   = bin
 
-all: $(OBJDIR)/simple.so dme_nc dme_bm
+all: $(OBJDIR)/ricart.so $(OBJDIR)/simple.so dme_nc dme_bm
 
 # This is an example shared distributed mutual exclusion library
+$(OBJDIR)/ricart.so: $(SRCDIR)/simple.c $(SRCDIR)/dme.h
+	gcc -shared -o $(OBJDIR)/ricart.so $(SRCDIR)/ricart.c -fPIC
+
 $(OBJDIR)/simple.so: $(SRCDIR)/simple.c $(SRCDIR)/dme.h
 	gcc -shared -o $(OBJDIR)/simple.so $(SRCDIR)/simple.c -fPIC
 
