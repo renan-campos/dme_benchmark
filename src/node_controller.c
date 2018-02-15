@@ -320,7 +320,7 @@ void *receiver_thread(void *arg) {
 		}
 	if (node == -1)
 		error(0, "Sockfd error\n");
-	printf("Receiver thread for node %d started with %d\n", node, sockfd);
+	printf("Receiver thread for node %d started\n", node, sockfd);
 	fflush(stdout);
 
 	for (;;) {
@@ -375,7 +375,7 @@ void *sender_thread(void *arg) {
 		if (msgrcv(msqid, &omsg, sizeof(MSG), TO_SND, 0) == -1)
 			error(0, "NC: Error on message queue receive\n");
 
-		printf("SENDER: message received of size %d\n", omsg.size);
+		printf("SENDER: sending message of size %d\n", omsg.size);
 		fflush(stdout);
 
 		for (i = 0; i < n_tot; i++) {

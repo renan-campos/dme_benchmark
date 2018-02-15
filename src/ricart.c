@@ -41,6 +41,8 @@ void *dme_msg_handler(void *arg) {
     struct qent *ric_front;
     struct qent *temp1, *temp2;
 
+    int i;
+
 	if (msqid == -1) {
 		perror("msgget failed :\n");
 		exit(1);
@@ -48,14 +50,25 @@ void *dme_msg_handler(void *arg) {
 
     printf("Ricart algorithm started with %d nodes\n", ntot); // prints are for logging information
     fflush(stdout);
+    
+    for( i = 0, temp1 = ric_front; temp1 != NULL; temp1 = temp1->next, i++) ;
+    printf("RICART: %d entries in queue.\n", i);
+    fflush(stdout);
+
+    printf("WTF HOW AM I HERE?!\n");
+    fflush(stdout);
 
 	for (;;) {
+        for( i = 0, temp1 = ric_front; temp1 != NULL; temp1 = temp1->next, i++) ;
+        printf("RICART: %d entries in queue.\n", i);
+        fflush(stdout);
+
 		if (msgrcv(msqid, &imsg, sizeof(MSG), TO_DME, 0) == -1) {
 			perror("msgrcv failed :\n");
 			exit(1);
 		}
 		
-        printf("ricart: Message queue message received!\n");
+        printf("RICART: Message queue message received!\n");
         fflush(stdout);
     
 		memcpy(&rmsg, &imsg.buf, sizeof(struct ric_msg));
@@ -146,6 +159,8 @@ void *dme_msg_handler(void *arg) {
             if (temp1->reply_count == -1) {
                 // The client has finished the critical section, remove entry
                 // and reply to remote requests.
+                printf("RICART: Can send REPLY's again\n");
+                fflush(stdout);
                 ric_front = ric_front->next;
                 free(temp1);
             }
@@ -165,6 +180,9 @@ void *dme_msg_handler(void *arg) {
             temp1->rmsg.type = REPLY;
             memcpy(&imsg.buf, &(temp1->rmsg), sizeof(struct ric_msg));
             imsg.size = sizeof(struct ric_msg);
+
+            printf("RICART: REPLY SENT\n");
+            fflush(stdout);
             
             if (msgsnd(msqid, &imsg, sizeof(MSG), 0) == -1) {
                 perror("Error on message send\n");
@@ -229,12 +247,6 @@ void dme_up() {
 	imsg.type = TO_DME;
 	if (msgsnd(msqid, &imsg, sizeof(MSG), 0) == -1) {
 		perror("Error on message send\n");
-		exit(1);
-	}	
-
-    // Wait to hear back from handler to start critical section. 
-	if (msgrcv(msqid, &imsg, sizeof(MSG), TO_CON, 0) == -1) {
-		perror("Error on message receive\n");
 		exit(1);
 	}	
 }
