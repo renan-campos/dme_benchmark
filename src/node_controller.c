@@ -108,6 +108,7 @@ int main(int argc, char *argv[]) {
 	// dynamic library variables
 	void *handle;
 	void *(*dme_msg_handler)(void*);
+    int msg_args[2]; // arguments for msg_handler (node id and total nodes)
 
 	// Parse command line arguments
 	if (argc < 4) 
@@ -161,7 +162,9 @@ int main(int argc, char *argv[]) {
 	}
 	
 	// Start distributed mutual exclusion message handler.
-        if (pthread_create(&thread_id, NULL, (*dme_msg_handler), (void *) &n_id) != 0) {
+	msg_args[0] = n_id;
+    msg_args[1] = n_tot;
+    if (pthread_create(&thread_id, NULL, (*dme_msg_handler), (void *) &msg_args) != 0) {
 		fprintf(stderr, "pthread_create failed\n");
 		exit(1);
 	}

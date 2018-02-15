@@ -16,6 +16,7 @@ struct simple_msg {
 
 void *dme_msg_handler(void *arg) {
     int nid = *((int *) arg);
+    int ntot = *(((int *) arg)+1);
 	int msqid = msgget(M_ID, 0600);
 	MSG imsg;
 	struct simple_msg smsg;
@@ -25,7 +26,7 @@ void *dme_msg_handler(void *arg) {
 		exit(1);
 	}
 
-    printf("Simple dme started\n");
+    printf("Simple dme started a total of %d nodes, this node's id is %d\n", ntot, nid);
     fflush(stdout);
 
 	for (;;) {
