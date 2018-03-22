@@ -55,9 +55,6 @@ void *dme_msg_handler(void *arg) {
     printf("RICART: %d entries in queue.\n", i);
     fflush(stdout);
 
-    printf("WTF HOW AM I HERE?!\n");
-    fflush(stdout);
-
 	for (;;) {
         for( i = 0, temp1 = ric_front; temp1 != NULL; temp1 = temp1->next, i++) ;
         printf("RICART: %d entries in queue.\n", i);
