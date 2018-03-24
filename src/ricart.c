@@ -51,10 +51,6 @@ void *dme_msg_handler(void *arg) {
     printf("Ricart algorithm started with %d nodes\n", ntot); // prints are for logging information
     fflush(stdout);
     
-    for( i = 0, temp1 = ric_front; temp1 != NULL; temp1 = temp1->next, i++) ;
-    printf("RICART: %d entries in queue.\n", i);
-    fflush(stdout);
-
 	for (;;) {
         for( i = 0, temp1 = ric_front; temp1 != NULL; temp1 = temp1->next, i++) ;
         printf("RICART: %d entries in queue.\n", i);
