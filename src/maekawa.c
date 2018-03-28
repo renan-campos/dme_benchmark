@@ -59,6 +59,12 @@ int voting_set[][][] = { {},                          // Set of zero nodes
                          {},                          // Set of two nodes
                          { {}, {1,2}, {2,3}, {1,3} }, // Set of three nodes
                        };
+int voting_set_size[] = { 0, 1, 2,
+			  2,        // Set of three nodes
+			  4, 5, 6,
+			  3,        // Set of seven nodes
+			  8, 9, 10, 11, 12,
+			  4 };	    // Set of thirteen nodes
 // Predicate used to check if clock a preceeds b.
 static bool preceed(struct mae_msg a, struct mae_msg b) {
     if (a.clk < b.clk)
@@ -101,6 +107,7 @@ void *dme_msg_handler(void *arg) {
     struct ient *inq_front = NULL;
     struct ient *itemp;	
     int i;
+	MSG imsg;
 
     fflag = false;
 
@@ -175,7 +182,7 @@ void *dme_msg_handler(void *arg) {
             printf("MAEKAWA: LOCK received.\n", i);
             fflush(stdout);
 			lock_count++;
-			if (lock_count == set_size) {
+			if (lock_count == voting_set_size[ntot]) {
 				// Ready to do critial section
 				// Reset fail flag and Inquiry list.
 				fflag = false;
@@ -248,6 +255,7 @@ void *dme_msg_handler(void *arg) {
 		    mae_front = mae_front->next;	
 			for (temp2 = mae_front; temp2->next != NULL && preceed(temp2->mmsg, temp1->mmsg); temp2=temp2->next) ;
 			temp1->next = temp2->next;
+			temp2->next = temp1;
 			// Send LOCK to new current.
 			mmsg.nid = nid;
 		    mmsg.type = LOCK;
@@ -273,7 +281,7 @@ void *dme_msg_handler(void *arg) {
             mmsg.clk = clock++;
             // Send REQUEST to voting set.
 			mmsg.type = REQUEST;
-			for (i = 0; i < set_size; i++)
+			for (i = 0; i < voting_set_size[ntot]; i++)
 				send_msg(mmsg, voting_set[ntot][nid][i]);
             break;
         case LOCAL_RELEASE:
@@ -283,7 +291,7 @@ void *dme_msg_handler(void *arg) {
             mmsg.clk = clock++;
             // Send RELEASE to voting set.
 			mmsg.type = RELEASE;
-			for (i = 0; i < set_size; i++)
+			for (i = 0; i < voting_set_size[ntot]; i++)
 				send_msg(mmsg, voting_set[ntot][nid][i]);
             break;
         }
@@ -337,7 +345,7 @@ void dme_up() {
 
 	memcpy(&imsg.buf, &mmsg, sizeof(struct mae_msg));
 
-    // Place REQUEST in message queue, block until ready.
+    // Place RELEASE in message queue, block until ready.
     imsg.size = sizeof(struct mae_msg);
 	imsg.type = TO_DME;
 	if (msgsnd(msqid, &imsg, sizeof(MSG), 0) == -1) {
