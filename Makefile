@@ -2,12 +2,15 @@ SRCDIR   = src
 OBJDIR   = lib
 BINDIR   = bin
 
-all: $(OBJDIR)/ricart.so $(OBJDIR)/simple.so dme_nc dme_bm
+all: $(OBJDIR)/maekawa.so $(OBJDIR)/ricart.so $(OBJDIR)/simple.so dme_nc dme_bm
 
-# This is an example shared distributed mutual exclusion library
+$(OBJDIR)/maekawa.so: $(SRCDIR)/maekawa.c $(SRCDIR)/dme.h
+	gcc -shared -o $(OBJDIR)/maekawa.so $(SRCDIR)/maekawa.c -fPIC
+
 $(OBJDIR)/ricart.so: $(SRCDIR)/ricart.c $(SRCDIR)/dme.h
 	gcc -shared -o $(OBJDIR)/ricart.so $(SRCDIR)/ricart.c -fPIC
 
+# This is an example shared distributed mutual exclusion library
 $(OBJDIR)/simple.so: $(SRCDIR)/simple.c $(SRCDIR)/dme.h
 	gcc -shared -o $(OBJDIR)/simple.so $(SRCDIR)/simple.c -fPIC
 

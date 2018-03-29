@@ -20,7 +20,8 @@ do
     host="dme-"$nid
     echo "Creating container with hostname: " $host
     #docker run --detach --net dist_net -h $host --name $host dme_nc "/bin/nc" $nid $tot "/lib/simple.so"
-    docker run --detach --net dist_net -h $host --name $host dme_nc "/bin/nc" $nid $tot "/lib/ricart.so"
+    #docker run --detach --net dist_net -h $host --name $host dme_nc "/bin/nc" $nid $tot "/lib/ricart.so"
+    docker run --detach --net dist_net -h $host --name $host dme_nc "/bin/nc" $nid $tot "/lib/maekawa.so"
     # Sleeping in order to make sure container is listening before new container makes a call.
     sleep 1 
 done

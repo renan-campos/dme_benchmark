@@ -43,10 +43,11 @@ struct qent {
 struct ient {
     int node;
     struct ient *next;
-}
+};
 
 // Fail flag set to 1 if FAIL received.
-bool fflag; 
+int fflag; 
+int lock_count = 0;
 
 // The voting set must have the following properties:
 // 1. All node's sets have a non-null intersection (optimally of size 1). 
@@ -54,10 +55,10 @@ bool fflag;
 // 3. The size of i's set is K, for any i.
 // 4. All nodes apear in an equal number of sets. 
 // NOTE: Ideally this should be automated, but are currently pre-computed.
-int voting_set[][][] = { {},                          // Set of zero nodes
-                         {},                          // Set of one node
-                         {},                          // Set of two nodes
-                         { {}, {1,2}, {2,3}, {1,3} }, // Set of three nodes
+int voting_set[4][4][2] = {{{0,0}, {0,0}, {0,0}, {0,0}},                      // Set of zero nodes
+                           {{0,0}, {0,0}, {0,0}, {0,0}},                      // Set of one node
+                           {{0,0}, {0,0}, {0,0}, {0,0}},                      // Set of two nodes
+                           {{0,0}, {1,2}, {2,3}, {1,3}}, // Set of three nodes
                        };
 int voting_set_size[] = { 0, 1, 2,
 			  2,        // Set of three nodes
@@ -66,15 +67,15 @@ int voting_set_size[] = { 0, 1, 2,
 			  8, 9, 10, 11, 12,
 			  4 };	    // Set of thirteen nodes
 // Predicate used to check if clock a preceeds b.
-static bool preceed(struct mae_msg a, struct mae_msg b) {
+static int preceed(struct mae_msg a, struct mae_msg b) {
     if (a.clk < b.clk)
-        return true;
+        return 1;
     if (a.clk == b.clk && a.nid < b.nid)
-        return true;
-    return false;
+        return 1;
+    return 0;
 }
 
-static void send_msg(struct mae_msg mmsg, int to) {
+static void send_msg(int msqid, struct mae_msg mmsg, int to) {
 	MSG imsg;
 
 	// If destination is local node, place directly in that queue.
@@ -109,7 +110,7 @@ void *dme_msg_handler(void *arg) {
     int i;
 	MSG imsg;
 
-    fflag = false;
+    fflag = 0;
 
 	if (msqid == -1) {
 		perror("msgget failed :\n");
@@ -156,7 +157,7 @@ void *dme_msg_handler(void *arg) {
 				mmsg.nid = nid;
 				mmsg.clk = clock;
 				mmsg.type = LOCK;
-				msgsnd(mmsg, temp1->mmsg.nid);
+				send_msg(msqid, mmsg, temp1->mmsg.nid);
             }
             else {
                 for (temp2 = mae_front; temp2->next != NULL && preceed(temp2->mmsg, temp1->mmsg); temp2=temp2->next) ;
@@ -165,14 +166,14 @@ void *dme_msg_handler(void *arg) {
 					mmsg.nid = nid;
 					mmsg.clk = clock;
 					mmsg.type = INQUIRY;
-					msgsnd(mmsg, mae_front->mmsg.nid);
+					send_msg(msqid, mmsg, mae_front->mmsg.nid);
 				}
 				else {
 					// Send FAIL to requesting node
 					mmsg.nid = nid;
 					mmsg.clk = clock;
 					mmsg.type = LOCK;
-					msgsnd(mmsg, temp1->mmsg.nid);
+					send_msg(msqid, mmsg, temp1->mmsg.nid);
 				}
 				temp1->next = temp2->next;
 				temp2->next = temp1;
@@ -185,8 +186,8 @@ void *dme_msg_handler(void *arg) {
 			if (lock_count == voting_set_size[ntot]) {
 				// Ready to do critial section
 				// Reset fail flag and Inquiry list.
-				fflag = false;
-				for (itemp = inq_front; itemp != NULL; itemp = inq_front;) {
+				fflag = 0;
+				for (itemp = inq_front; itemp != NULL; itemp = inq_front) {
 					inq_front = itemp->next;
 					free(itemp);
 				}
@@ -204,14 +205,14 @@ void *dme_msg_handler(void *arg) {
         case FAIL:
             printf("MAEKAWA: FAIL received.\n", i);
             fflush(stdout);
-			fflag = true;
+			fflag = 1;
 			mmsg.nid  = nid;
 			mmsg.type = RELINQUISH;
 			while (inq_front != NULL) {
 				itemp = inq_front;
 				inq_front = inq_front->next;
 
-				send_msg(mmsg, itemp->node); 
+				send_msg(msqid, mmsg, itemp->node); 
 
 				free(itemp);
 				// For every RELINQUISH sent, decrement lock_count
@@ -236,7 +237,7 @@ void *dme_msg_handler(void *arg) {
 					itemp = inq_front;
 					inq_front = inq_front->next;
 
-				    send_msg(mmsg, itemp->node); 
+				    send_msg(msqid, mmsg, itemp->node); 
 
 					free(itemp);
 				    // For every RELINQUISH sent, decrement lock_count
@@ -259,7 +260,7 @@ void *dme_msg_handler(void *arg) {
 			// Send LOCK to new current.
 			mmsg.nid = nid;
 		    mmsg.type = LOCK;
-			send_msg(mmsg, mae_front->mmsg.nid);
+			send_msg(msqid, mmsg, mae_front->mmsg.nid);
             break;
         case RELEASE:
             printf("MAEKAWA: RELEASE received.\n", i);
@@ -269,9 +270,11 @@ void *dme_msg_handler(void *arg) {
 			mae_front = mae_front->next;
 			free(temp1);
 			// send LOCK to new current.
-			mmsg.nid = nid;
-		    mmsg.type = LOCK;
-			send_msg(mmsg, mae_front->mmsg.nid);
+			if (mae_front != NULL) {
+                mmsg.nid = nid;
+                mmsg.type = LOCK;
+                send_msg(msqid, mmsg, mae_front->mmsg.nid);
+            }
 			break;
         case LOCAL_REQUEST:
             printf("MAEKAWA: LOCAL_REQUEST received.\n", i);
@@ -282,7 +285,7 @@ void *dme_msg_handler(void *arg) {
             // Send REQUEST to voting set.
 			mmsg.type = REQUEST;
 			for (i = 0; i < voting_set_size[ntot]; i++)
-				send_msg(mmsg, voting_set[ntot][nid][i]);
+				send_msg(msqid, mmsg, voting_set[ntot][nid][i]);
             break;
         case LOCAL_RELEASE:
             printf("MAEKAWA: LOCAL_RELEASE received.\n", i);
@@ -292,7 +295,7 @@ void *dme_msg_handler(void *arg) {
             // Send RELEASE to voting set.
 			mmsg.type = RELEASE;
 			for (i = 0; i < voting_set_size[ntot]; i++)
-				send_msg(mmsg, voting_set[ntot][nid][i]);
+				send_msg(msqid, mmsg, voting_set[ntot][nid][i]);
             break;
         }
 	}
@@ -301,7 +304,7 @@ void *dme_msg_handler(void *arg) {
 void dme_down() { 
 	int msqid = msgget(M_ID, 0600);
 	MSG imsg;
-	struct ric_msg mmsg;
+	struct mae_msg mmsg;
 
 	if (msqid == -1) {
 		perror("msgget failed :\n");
