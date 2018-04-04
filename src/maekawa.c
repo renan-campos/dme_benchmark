@@ -236,7 +236,10 @@ void *dme_msg_handler(void *arg) {
         case INQUIRY:
             printf("MAEKAWA: INQUIRY received.\n", i);
             fflush(stdout);
-			
+            
+            if (mae_front->mmsg.nid != nid)
+                break;			
+
 			// Add to inquiry list
 			itemp = (struct ient *) malloc(sizeof(struct ient));
 			itemp->node = mmsg.nid;
