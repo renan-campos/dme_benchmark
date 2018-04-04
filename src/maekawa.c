@@ -122,7 +122,9 @@ void *dme_msg_handler(void *arg) {
     
     for (;;) {
         // For debugging
-        for( i = 0, temp1 = mae_front; temp1 != NULL; temp1 = temp1->next, i++) ;
+        printf("MAEKAWA: ");
+        for( i = 0, temp1 = mae_front; temp1 != NULL; temp1 = temp1->next, i++) printf("%d ", temp1->mmsg.nid);
+        printf("\nMAEKAWA lock count: %d\n", lock_count);
         printf("MAEKAWA: %d entries in queue.\n", i);
         fflush(stdout);
         
@@ -157,23 +159,31 @@ void *dme_msg_handler(void *arg) {
 				mmsg.nid = nid;
 				mmsg.clk = clock;
 				mmsg.type = LOCK;
+                printf("MAEKAWA: LOCK sent to %d\n", temp1->mmsg.nid);
+                fflush(stdout);
 				send_msg(msqid, mmsg, temp1->mmsg.nid);
             }
             else {
                 for (temp2 = mae_front; temp2->next != NULL && preceed(temp2->mmsg, temp1->mmsg); temp2=temp2->next) ;
-                if (temp2 == mae_front) {
+                if (temp2 == mae_front && preceed(temp1->mmsg, temp2->mmsg)) {
                     // Send INQUIRY to current
 					mmsg.nid = nid;
 					mmsg.clk = clock;
 					mmsg.type = INQUIRY;
+                    printf("MAEKAWA: INQUIRY sent to %d\n", mae_front->mmsg.nid);
+                    fflush(stdout);
 					send_msg(msqid, mmsg, mae_front->mmsg.nid);
 				}
 				else {
 					// Send FAIL to requesting node
 					mmsg.nid = nid;
 					mmsg.clk = clock;
-					mmsg.type = LOCK;
-					send_msg(msqid, mmsg, temp1->mmsg.nid);
+					mmsg.type = FAIL;
+                    if (temp1->mmsg.nid != nid) {
+                        printf("MAEKAWA: FAIL sent to %d\n", temp1->mmsg.nid);
+                        fflush(stdout);
+                        send_msg(msqid, mmsg, temp1->mmsg.nid);
+                    }
 				}
 				temp1->next = temp2->next;
 				temp2->next = temp1;
@@ -196,6 +206,8 @@ void *dme_msg_handler(void *arg) {
 				memcpy(&imsg.buf, &mmsg, sizeof(struct mae_msg));
 				imsg.size = sizeof(struct mae_msg);
 				imsg.type = TO_CON;
+                printf("MAEKAWA: message sent to producer\n", i);
+                fflush(stdout);
 				if (msgsnd(msqid, &imsg, sizeof(MSG), 0) == -1) {
 					perror("Error on message send\n");
 					exit(1);
@@ -212,6 +224,8 @@ void *dme_msg_handler(void *arg) {
 				itemp = inq_front;
 				inq_front = inq_front->next;
 
+                printf("MAEKAWA: RELINQUISH sent to %d\n", itemp->node);
+                fflush(stdout);
 				send_msg(msqid, mmsg, itemp->node); 
 
 				free(itemp);
@@ -237,6 +251,8 @@ void *dme_msg_handler(void *arg) {
 					itemp = inq_front;
 					inq_front = inq_front->next;
 
+                    printf("MAEKAWA: RELINQUISH sent to %d\n", itemp->node);
+                    fflush(stdout);
 				    send_msg(msqid, mmsg, itemp->node); 
 
 					free(itemp);
@@ -260,6 +276,8 @@ void *dme_msg_handler(void *arg) {
 			// Send LOCK to new current.
 			mmsg.nid = nid;
 		    mmsg.type = LOCK;
+            printf("MAEKAWA: LOCK sent to %d\n", mae_front->mmsg.nid);
+            fflush(stdout);
 			send_msg(msqid, mmsg, mae_front->mmsg.nid);
             break;
         case RELEASE:
@@ -273,6 +291,8 @@ void *dme_msg_handler(void *arg) {
 			if (mae_front != NULL) {
                 mmsg.nid = nid;
                 mmsg.type = LOCK;
+                printf("MAEKAWA: LOCK sent to %d\n", mae_front->mmsg.nid);
+                fflush(stdout);
                 send_msg(msqid, mmsg, mae_front->mmsg.nid);
             }
 			break;
@@ -284,8 +304,11 @@ void *dme_msg_handler(void *arg) {
             mmsg.clk = clock++;
             // Send REQUEST to voting set.
 			mmsg.type = REQUEST;
-			for (i = 0; i < voting_set_size[ntot]; i++)
+			for (i = 0; i < voting_set_size[ntot]; i++) {
+                printf("MAEKAWA: REQUEST sent to %d\n", voting_set[ntot][nid][i]);
+                fflush(stdout);
 				send_msg(msqid, mmsg, voting_set[ntot][nid][i]);
+            }
             break;
         case LOCAL_RELEASE:
             printf("MAEKAWA: LOCAL_RELEASE received.\n", i);
@@ -294,8 +317,11 @@ void *dme_msg_handler(void *arg) {
             mmsg.clk = clock++;
             // Send RELEASE to voting set.
 			mmsg.type = RELEASE;
-			for (i = 0; i < voting_set_size[ntot]; i++)
+			for (i = 0; i < voting_set_size[ntot]; i++) {
+                printf("MAEKAWA: RELEASE sent to %d\n", voting_set[ntot][nid][i]);
+                fflush(stdout);
 				send_msg(msqid, mmsg, voting_set[ntot][nid][i]);
+            }
             break;
         }
 	}
