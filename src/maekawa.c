@@ -124,8 +124,11 @@ void *dme_msg_handler(void *arg) {
         // For debugging
         printf("MAEKAWA: ");
         for( i = 0, temp1 = mae_front; temp1 != NULL; temp1 = temp1->next, i++) printf("%d ", temp1->mmsg.nid);
+        printf("MAEKAWA: %d entries in request queue.\n", i);
+        printf("MAEKAWA: ");
+        for( i = 0, itemp = inq_front; itemp != NULL; itemp = itemp->next, i++) printf("%d ", itemp->node);
+        printf("MAEKAWA: %d entries in inquiry queue.\n", i);
         printf("\nMAEKAWA lock count: %d\n", lock_count);
-        printf("MAEKAWA: %d entries in queue.\n", i);
         fflush(stdout);
         
         // Receiving next message
@@ -201,12 +204,11 @@ void *dme_msg_handler(void *arg) {
 					inq_front = itemp->next;
 					free(itemp);
 				}
-				lock_count = 0;
 				// Send process that called dme_down a message.
 				memcpy(&imsg.buf, &mmsg, sizeof(struct mae_msg));
 				imsg.size = sizeof(struct mae_msg);
 				imsg.type = TO_CON;
-                printf("MAEKAWA: message sent to producer\n", i);
+                printf("MAEKAWA: message sent to producer\n");
                 fflush(stdout);
 				if (msgsnd(msqid, &imsg, sizeof(MSG), 0) == -1) {
 					perror("Error on message send\n");
@@ -237,8 +239,8 @@ void *dme_msg_handler(void *arg) {
             printf("MAEKAWA: INQUIRY received.\n", i);
             fflush(stdout);
             
-            if (mae_front->mmsg.nid != nid)
-                break;			
+            if (mae_front->mmsg.nid != nid || lock_count == voting_set_size[ntot])
+                break;
 
 			// Add to inquiry list
 			itemp = (struct ient *) malloc(sizeof(struct ient));
@@ -267,7 +269,7 @@ void *dme_msg_handler(void *arg) {
         case RELINQUISH:
             printf("MAEKAWA: RELINQUISH received.\n", i);
             fflush(stdout);
-			if (mae_front->mmsg.nid == nid) {
+			if (mae_front->mmsg.nid == nid && mmsg.nid != nid) {
 				lock_count--;
             }
 			// Requeue the current 
@@ -286,6 +288,9 @@ void *dme_msg_handler(void *arg) {
         case RELEASE:
             printf("MAEKAWA: RELEASE received.\n", i);
             fflush(stdout);
+            // Reset lock count. 
+            if (mae_front->mmsg.nid == nid)
+                lock_count = 0;
 			// Pop next current from queue.
 			temp1 = mae_front;
 			mae_front = mae_front->next;
