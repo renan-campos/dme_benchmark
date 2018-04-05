@@ -31,12 +31,25 @@ int main(int argc, char *argv[]) {
 	int sockfd, portno, n;
 	struct sockaddr_in serv_addr;
 	struct hostent *server;
-	int i, msgs, node_id, num;
+	int i, j, msgs, node_id, num;
 	struct msg donut;
 
 	void *handle;
 	void (*dme_up)(void);
 	void (*dme_down)(void);
+    
+    // For random number generation using nrand48
+    short xsub1[3]; // nrand48 uses 48 bits (16 * 3 = 48)
+    struct timeval randtime;
+
+    /*** Initialize 48-bit random seed. ***/
+    // This system call fills a timeval structure, which has two members:
+    // tv_sec - seconds since 01/01/1970; tv_usec - microseconds since syscall.
+    gettimeofday(&randtime, (struct timezone*) 0);
+
+    xsub1[0] = (ushort)(randtime.tv_usec);
+    xsub1[1] = (ushort)(randtime.tv_usec >> 16);
+    xsub1[2] = (ushort)(getpid());
 
 	// Determining node id
 	node_id = atoi(argv[1]);
@@ -78,7 +91,10 @@ int main(int argc, char *argv[]) {
                 server->h_length);
         serv_addr.sin_port = htons(portno);
 		
-        usleep(5);
+        j = nrand48(xsub1) & 0xEFFFF; // Between 0 - 1000000
+        printf("PROD: sleeping for %d microseconds\n", j); 
+        usleep(j);
+        
 
         // Get distributed mutex in order to run critical section
 		(*dme_down)();
