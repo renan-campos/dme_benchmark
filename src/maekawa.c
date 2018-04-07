@@ -48,6 +48,7 @@ struct ient {
 // Fail flag set to 1 if FAIL received.
 int fflag; 
 int lock_count = 0;
+int inq_sent = 0;
 
 // The voting set must have the following properties:
 // 1. All node's sets have a non-null intersection (optimally of size 1). 
@@ -55,10 +56,14 @@ int lock_count = 0;
 // 3. The size of i's set is K, for any i.
 // 4. All nodes apear in an equal number of sets. 
 // NOTE: Ideally this should be automated, but are currently pre-computed.
-int voting_set[4][4][2] = {{{0,0}, {0,0}, {0,0}, {0,0}},                      // Set of zero nodes
-                           {{0,0}, {0,0}, {0,0}, {0,0}},                      // Set of one node
-                           {{0,0}, {0,0}, {0,0}, {0,0}},                      // Set of two nodes
-                           {{0,0}, {1,2}, {2,3}, {1,3}}, // Set of three nodes
+int voting_set[8][8][3] = {{{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}}, // Set of zero nodes
+                           {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}}, // Set of one node
+                           {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}}, // Set of two nodes
+                           {{0,0,0},{1,2,0},{2,3,0},{1,3,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}}, // Set of three nodes
+                           {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}}, // Set of four nodes
+                           {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}}, // Set of five nodes
+                           {{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0},{0,0,0}}, // Set of six nodes
+                           {{0,0,0},{1,2,3},{2,4,6},{3,5,6},{1,4,5},{2,5,7},{1,6,7},{3,4,7}}, // Set of seven nodes
                        };
 int voting_set_size[] = { 0, 1, 2,
 			  2,        // Set of three nodes
@@ -169,13 +174,20 @@ void *dme_msg_handler(void *arg) {
             else {
                 for (temp2 = mae_front; temp2->next != NULL && preceed(temp2->mmsg, temp1->mmsg); temp2=temp2->next) ;
                 if (temp2 == mae_front && preceed(temp1->mmsg, temp2->mmsg)) {
-                    // Send INQUIRY to current
-					mmsg.nid = nid;
-					mmsg.clk = clock;
-					mmsg.type = INQUIRY;
-                    printf("MAEKAWA: INQUIRY sent to %d\n", mae_front->mmsg.nid);
-                    fflush(stdout);
-					send_msg(msqid, mmsg, mae_front->mmsg.nid);
+                    if (!inq_sent) {
+                        // Send INQUIRY to current
+                        mmsg.nid = nid;
+                        mmsg.clk = clock;
+                        mmsg.type = INQUIRY;
+                        printf("MAEKAWA: INQUIRY sent to %d\n", mae_front->mmsg.nid);
+                        fflush(stdout);
+                        send_msg(msqid, mmsg, mae_front->mmsg.nid);
+                        inq_sent = 1;
+                    }
+                    else {
+                        // INQUIRY has already been sent, place current REQUEST in proper spot with those that already preceed. 
+                        for (temp2 = mae_front->next; temp2->next != NULL && preceed(temp2->mmsg, temp1->mmsg); temp2=temp2->next) ;
+                    }
 				}
 				else {
 					// Send FAIL to requesting node
@@ -238,8 +250,8 @@ void *dme_msg_handler(void *arg) {
         case INQUIRY:
             printf("MAEKAWA: INQUIRY received.\n", i);
             fflush(stdout);
-            
-            if (mae_front->mmsg.nid != nid || lock_count == voting_set_size[ntot])
+           
+            if (mae_front == NULL || lock_count == voting_set_size[ntot])
                 break;
 
 			// Add to inquiry list
@@ -288,6 +300,8 @@ void *dme_msg_handler(void *arg) {
         case RELEASE:
             printf("MAEKAWA: RELEASE received.\n", i);
             fflush(stdout);
+            // Reset INQUIRY sent
+            inq_sent = 0;
             // Reset lock count. 
             if (mae_front->mmsg.nid == nid)
                 lock_count = 0;
