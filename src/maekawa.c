@@ -172,8 +172,8 @@ void *dme_msg_handler(void *arg) {
 				send_msg(msqid, mmsg, temp1->mmsg.nid);
             }
             else {
-                for (temp2 = mae_front; temp2->next != NULL && preceed(temp2->mmsg, temp1->mmsg); temp2=temp2->next) ;
-                if (temp2 == mae_front && preceed(temp1->mmsg, temp2->mmsg)) {
+                for (temp2 = mae_front; temp2->next != NULL && preceed(temp2->next->mmsg, temp1->mmsg); temp2=temp2->next) ;
+                if (temp2 == mae_front && preceed(temp1->mmsg, mae_front->mmsg)) {
                     if (!inq_sent) {
                         // Send INQUIRY to current
                         mmsg.nid = nid;
@@ -186,7 +186,7 @@ void *dme_msg_handler(void *arg) {
                     }
                     else {
                         // INQUIRY has already been sent, place current REQUEST in proper spot with those that already preceed. 
-                        for (temp2 = mae_front->next; temp2->next != NULL && preceed(temp2->mmsg, temp1->mmsg); temp2=temp2->next) ;
+                        for (temp2 = mae_front; temp2->next != NULL && preceed(temp2->next->mmsg, temp1->mmsg); temp2=temp2->next) ;
                     }
 				}
 				else {
@@ -287,7 +287,7 @@ void *dme_msg_handler(void *arg) {
 			// Requeue the current 
 			temp1 = mae_front;
 		    mae_front = mae_front->next;	
-			for (temp2 = mae_front; temp2->next != NULL && preceed(temp2->mmsg, temp1->mmsg); temp2=temp2->next) ;
+			for (temp2 = mae_front; temp2->next != NULL && preceed(temp2->next->mmsg, temp1->mmsg); temp2=temp2->next) ;
 			temp1->next = temp2->next;
 			temp2->next = temp1;
 			// Send LOCK to new current.
