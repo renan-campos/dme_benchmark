@@ -173,11 +173,13 @@ void *dme_msg_handler(void *arg) {
             }
             else {
                 for (temp2 = mae_front; temp2->next != NULL && preceed(temp2->next->mmsg, temp1->mmsg); temp2=temp2->next) ;
-                if (temp2 == mae_front && preceed(temp1->mmsg, mae_front->mmsg)) {
+                // Does the current locking request preceed this request?
+                // Does any of the requests preceed this request?
+                if (preceed(temp1->mmsg, mae_front->mmsg) && preceed(temp1->mmsg, temp2->mmsg)) {
                     if (!inq_sent) {
                         // Send INQUIRY to current
                         mmsg.nid = nid;
-                        mmsg.clk = clock;
+                        mmsg.clk = mae_front->mmsg.clk;
                         mmsg.type = INQUIRY;
                         printf("MAEKAWA: INQUIRY sent to %d\n", mae_front->mmsg.nid);
                         fflush(stdout);
@@ -185,20 +187,17 @@ void *dme_msg_handler(void *arg) {
                         inq_sent = 1;
                     }
                     else {
-                        // INQUIRY has already been sent, place current REQUEST in proper spot with those that already preceed. 
-                        for (temp2 = mae_front; temp2->next != NULL && preceed(temp2->next->mmsg, temp1->mmsg); temp2=temp2->next) ;
+                        printf("MAEKAWA: INQUIRY already sent.\n");
+                        fflush(stdout);
                     }
 				}
 				else {
 					// Send FAIL to requesting node
 					mmsg.nid = nid;
-					mmsg.clk = clock;
 					mmsg.type = FAIL;
-                    if (temp1->mmsg.nid != nid) {
-                        printf("MAEKAWA: FAIL sent to %d\n", temp1->mmsg.nid);
-                        fflush(stdout);
-                        send_msg(msqid, mmsg, temp1->mmsg.nid);
-                    }
+                    printf("MAEKAWA: FAIL sent to %d\n", temp1->mmsg.nid);
+                    fflush(stdout);
+                    send_msg(msqid, mmsg, temp1->mmsg.nid);
 				}
 				temp1->next = temp2->next;
 				temp2->next = temp1;
@@ -251,8 +250,17 @@ void *dme_msg_handler(void *arg) {
             printf("MAEKAWA: INQUIRY received.\n", i);
             fflush(stdout);
            
-            if (mae_front == NULL || lock_count == voting_set_size[ntot])
+            // Find request that INQUIRY is asking about by matching the clock.
+            for (temp2 = mae_front; temp2 != NULL && temp2->mmsg.nid != nid; temp2=temp2->next) ;
+            // Ignore INQUIRY if asking for a previous request, or already in critical section.
+            if (temp2 == NULL || 
+                temp2->mmsg.nid != nid ||
+                temp2->mmsg.clk != mmsg.clk ||
+                lock_count == voting_set_size[ntot]) {
+                printf("MAEKAWA: INQUIRY ignored.\n");
+                fflush(stdout);
                 break;
+            }
 
 			// Add to inquiry list
 			itemp = (struct ient *) malloc(sizeof(struct ient));
@@ -281,15 +289,14 @@ void *dme_msg_handler(void *arg) {
         case RELINQUISH:
             printf("MAEKAWA: RELINQUISH received.\n", i);
             fflush(stdout);
-			if (mae_front->mmsg.nid == nid && mmsg.nid != nid) {
-				lock_count--;
-            }
 			// Requeue the current 
 			temp1 = mae_front;
 		    mae_front = mae_front->next;	
 			for (temp2 = mae_front; temp2->next != NULL && preceed(temp2->next->mmsg, temp1->mmsg); temp2=temp2->next) ;
 			temp1->next = temp2->next;
 			temp2->next = temp1;
+            // Reset INQUIRY sent
+            inq_sent = 0;
 			// Send LOCK to new current.
 			mmsg.nid = nid;
 		    mmsg.type = LOCK;
