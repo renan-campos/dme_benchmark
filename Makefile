@@ -2,7 +2,10 @@ SRCDIR   = src
 OBJDIR   = lib
 BINDIR   = bin
 
-all: $(OBJDIR)/maekawa.so $(OBJDIR)/ricart.so $(OBJDIR)/simple.so dme_nc dme_bm
+all: $(OBJDIR)/fuchi.so $(OBJDIR)/maekawa.so $(OBJDIR)/ricart.so $(OBJDIR)/simple.so dme_nc dme_bm
+
+$(OBJDIR)/fuchi.so: $(SRCDIR)/fuchi.c $(SRCDIR)/dme.h
+	gcc -shared -o $(OBJDIR)/fuchi.so $(SRCDIR)/fuchi.c -fPIC
 
 $(OBJDIR)/maekawa.so: $(SRCDIR)/maekawa.c $(SRCDIR)/dme.h
 	gcc -shared -o $(OBJDIR)/maekawa.so $(SRCDIR)/maekawa.c -fPIC
