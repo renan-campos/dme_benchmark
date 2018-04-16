@@ -457,8 +457,6 @@ void *dme_msg_handler(void *arg) {
             /* Searching the oldest exclusion request */
             nextNode = searchOldestRequest(myNode.requestTimes);
             myNode.timeStamp++;
-            printf("RENAN2: nextNode = %d\n", nextNode);
-            fflush(stdout);
             /* The case where there is an exclusion request */
             if (nextNode != NULLnode) {
                 myNode.oldestStamp = myNode.requestTimes[nextNode];
