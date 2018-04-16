@@ -45,7 +45,7 @@ int voting_set_size[] = { 0, 1, 2,
 /******************************************************************************/
 
 // Maximum number of nodes
-#define N 7
+#define N 8
 
 // A number which is not a node number.
 #define NULLnode -1
@@ -137,16 +137,18 @@ static int searchOldestRequest() {
     int i;
     int lowtime = NULLtime;
     int lownode = NULLnode;
-    for (i = 0; i < N; i++)
+    for (i = 0; i < N; i++) {
+        if (myNode.requestTimes[i] == NULLtime)
+            continue;
         if (lownode == NULLnode || myNode.requestTimes[i] < lowtime) {
             lownode = i;
             lowtime = myNode.requestTimes[i];
         }
+    }
 
     if (lowtime == NULLtime)
         return NULLnode;
-    // Adding one because nodes start at 1, while array starts at 0.
-    return lownode + 1;
+    return lownode;
 }
 
 static int max(int a, int b) {
@@ -179,42 +181,59 @@ void *dme_msg_handler(void *arg) {
     printf("Fuchi algorithm started with %d nodes\n", ntot); 
     fflush(stdout);
    
-    // TODO Initialize Fuchi data structures.
     myNode.number = nid;
     myNode.timeStamp = 0;
     myNode.member = (int *) &voting_set[ntot][nid];
     for (i = 0; i < N; i++) {
-	myNode.requestTimes[i] = NULLtime;
-	myNode.finishTimes[i] = NULLtime;
+        myNode.requestTimes[i] = NULLtime;
+        myNode.finishTimes[i] = NULLtime;
     }
     myNode.waitNode = NULLnode;
     myNode.waitTime = NULLtime;
     myNode.oldestStamp = NULLtime;
     myNode.haveToken = 0;
     if (nid == 1) {
-	/* Initialize token */
-	myNode.haveToken = 1;
-	keepToken.timeStamp = 0;
-	for (i = 0; i < N; i++) {
-	    keepToken.requestTimes[i] = NULLtime;
-	    keepToken.finishTimes[i] = NULLtime;
-	}
-	/* Send finishes to members of 1's voting set. */
-	finish = &mmsg.msg.finish;
-	finish->timeStamp = 0;
-	finish->sender = nid;
-	for (i = 0; i < N; i++) finish->finishTimes[i] = NULLtime; 
+        /* Initialize token */
+        myNode.haveToken = 1;
+        keepToken.timeStamp = 0;
+        for (i = 0; i < N; i++) {
+            keepToken.requestTimes[i] = NULLtime;
+            keepToken.finishTimes[i] = NULLtime;
+        }
+        /* Send finishes to members of 1's voting set. */
+        finish = &mmsg.msg.finish;
+        finish->timeStamp = 0;
+        finish->sender = nid;
+        for (i = 0; i < N; i++) finish->finishTimes[i] = NULLtime; 
 
-	mmsg.type = FINISH;
-	for (i = 0; i < M; i++) {
-	    printf("FUCHI: FINISH sent to %d\n", myNode.member[i]);
-	    fflush(stdout);
-	    send_msg(msqid, mmsg, myNode.member[i]);
-	}
+        mmsg.type = FINISH;
+        for (i = 0; i < M; i++) {
+            printf("FUCHI: FINISH sent to %d\n", myNode.member[i]);
+            fflush(stdout);
+            send_msg(msqid, mmsg, myNode.member[i]);
+        }
     }
 
  
     for (;;) {
+
+
+        printf("FUCHI: Current state information:\n");
+        printf("\tmyNode.number : %d \n", myNode.number);
+        printf("\tmyNode.timeStamp: %d\n", myNode.timeStamp);
+        printf("\tmyNode.members:\n");
+        for (i = 0; i < M; i++) printf("\t\t%d\n", myNode.member[i]);
+        printf("\tmyNode.requestTimes:\n");
+        for (i = 0; i < N; i++) printf("\t\t%d\n", myNode.requestTimes[i]);
+        printf("\tmyNode.finishTimes:\n");
+        for (i = 0; i < N; i++) printf("\t\t%d\n", myNode.finishTimes[i]);
+        printf("myNode.waitNode: %d\n", myNode.waitNode);
+        printf("myNode.waitTime: %d\n", myNode.waitTime);
+        printf("myNode.oldestStamp: %d\n", myNode.oldestStamp);
+        printf("myNode.haveToken: %d\n", myNode.haveToken);
+        printf("FUCHI: End current state information\n");
+        fflush(stdout);
+
         
         // Receiving next message
         if (msgrcv(msqid, &imsg, sizeof(MSG), TO_DME, 0) == -1) {
@@ -266,18 +285,21 @@ void *dme_msg_handler(void *arg) {
                 myNode.waitTime = NULLtime;
             }
             /* Processing anti-starvation time stamp */
-            for (i = 0; i < N; i++)
+            for (i = 0; i < N; i++) {
+                if (request->oldestStamp == NULLtime || request->sender == myNode.number)
+                    break;
                 if (request->oldestStamp >= myNode.requestTimes[i]) {
                     myNode.timeStamp++;
                     request->timeStamp = myNode.timeStamp;
                     for (i = 0; i < N; i++) request->requestTimes[i] = myNode.requestTimes[i];
                     for (i = 0; i < N; i++) request->finishTimes[i] = myNode.finishTimes[i];
                     
-                    printf("FUCHI: REQUEST sent to %d\n", request->sender);
+                    printf("FUCHI: (anti-starvation) REQUEST sent to %d\n", request->sender);
                     fflush(stdout);
                     send_msg(msqid, mmsg, request->sender);
                     break;
                 }
+            }
             /* If token is held */
             if (myNode.haveToken) {
                 nextNode = searchOldestRequest(myNode.requestTimes);
@@ -435,6 +457,8 @@ void *dme_msg_handler(void *arg) {
             /* Searching the oldest exclusion request */
             nextNode = searchOldestRequest(myNode.requestTimes);
             myNode.timeStamp++;
+            printf("RENAN2: nextNode = %d\n", nextNode);
+            fflush(stdout);
             /* The case where there is an exclusion request */
             if (nextNode != NULLnode) {
                 myNode.oldestStamp = myNode.requestTimes[nextNode];
@@ -442,6 +466,7 @@ void *dme_msg_handler(void *arg) {
 
                 mmsg.msg.token = keepToken;
                 
+                mmsg.type = TOKEN;
                 printf("FUCHI: TOKEN sent to %d\n", nextNode);
                 fflush(stdout);
                 send_msg(msqid, mmsg, nextNode);
